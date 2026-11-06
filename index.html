@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHADOW STRIKE</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080d16;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;background:#101b27}
+#hud{position:fixed;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;flex-wrap:wrap}
+.panel{background:#07111ddd;border:1px solid #536b83;border-radius:8px;padding:9px 13px;font-weight:bold;letter-spacing:.5px}
+#bottom{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);font-size:13px;color:#cbd8e8;text-align:center;background:#07111dbb;padding:8px 12px;border-radius:8px;white-space:nowrap}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#050a12df;padding:18px}
+#card{max-width:480px;text-align:center;background:#111e2e;border:1px solid #5d7895;border-radius:16px;padding:28px;box-shadow:0 18px 60px #000}
+h1{margin:0;color:#eaf4ff;letter-spacing:5px;font-size:clamp(28px,6vw,44px)}
+p{color:#c0cfe0;line-height:1.55}button{border:0;border-radius:8px;background:#e34e38;color:white;font-weight:bold;padding:13px 24px;font-size:16px;cursor:pointer}
+button:hover{background:#ff654c}.muted{font-size:12px;color:#92a7bf}
+#toast{position:fixed;top:23%;left:50%;transform:translateX(-50%);font-weight:bold;color:#ffe17c;text-shadow:0 2px 4px #000;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+ <div class="panel">SHADOW STRIKE</div>
+ <div class="panel">HEALTH: <span id="health">100</span></div>
+ <div class="panel">AMMO: <span id="ammo">12</span>/12</div>
+ <div class="panel">SCORE: <span id="score">0</span></div>
+ <div class="panel">BOTS: <span id="bots">5</span></div>
+</div>
+<div id="toast"></div>
+<div id="bottom">WASD / Arrow keys: move · Mouse: aim · Click / Space: shoot · R: reload</div>
+<div id="overlay"><div id="card">
+<h1>SHADOW STRIKE</h1>
+<p>Enter the arena. Defeat the enemy bots, collect health boosts and survive as long as you can.</p>
+<p><b>Controls</b><br>WASD or arrow keys to move<br>Move mouse to aim · Click or Space to shoot<br>R to reload</p>
+<button id="start">START GAME</button>
+<p class="muted">Browser game · No installation required</p>
+</div></div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W,H,player,bots,boosts,bullets,enemyBullets,keys={},mouse={x:0,y:0},score=0,ammo=12,health=100,running=false,over=false,lastShot=0,lastSpawn=0;
+const $=id=>document.getElementById(id);
+function resize(){W=canvas.width=innerWidth*devicePixelRatio;H=canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);W=innerWidth;H=innerHeight;if(player){player.x=Math.min(W-30,Math.max(30,player.x));player.y=Math.min(H-30,Math.max(30,player.y));}}
+addEventListener('resize',resize);resize();
+function rand(a,b){return Math.random()*(b-a)+a}
+function newBot(){let side=Math.floor(Math.random()*4),x=side===0?rand(20,W-20):side===1?W-20:side===2?rand(20,W-20):20,y=side===0?20:side===1?rand(20,H-20):side===2?H-20:rand(20,H-20);return{x,y,r:17,hp:100,max:100,speed:rand(38,60),shot:rand(1.2,2.5),cool:rand(.5,2),alive:true}}
+function reset(){player={x:W/2,y:H/2,r:17,angle:0};bots=Array.from({length:5},newBot);boosts=[];bullets=[];enemyBullets=[];score=0;ammo=12;health=100;over=false;running=true;update();$('overlay').style.display='none';}
+function update(){ $('health').textContent=health;$('ammo').textContent=ammo;$('score').textContent=score;$('bots').textContent=bots.filter(b=>b.alive).length; }
+function toast(s){$('toast').textContent=s;clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').textContent='',1100)}
+function shoot(){if(!running||over||performance.now()-lastShot<230)return;if(ammo<=0){toast('OUT OF AMMO — PRESS R');return}lastShot=performance.now();ammo--;let a=player.angle;bullets.push({x:player.x+Math.cos(a)*22,y:player.y+Math.sin(a)*22,vx:Math.cos(a)*640,vy:Math.sin(a)*640,life:.7});update()}
+function reload(){if(running&&!over&&ammo<12){ammo=12;toast('RELOADED');update()}}
+function end(win){over=true;running=false;$('overlay').style.display='flex';$('card').innerHTML=`<h1>${win?'MISSION COMPLETE':'MISSION FAILED'}</h1><p>${win?'All enemy bots eliminated!':'You were eliminated.'}</p><p>Final score: <b>${score}</b></p><button onclick="reset()">PLAY AGAIN</button>`}
+$('start').onclick=reset;
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key.toLowerCase()==='r')reload();if(e.code==='Space'){e.preventDefault();shoot()}});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+canvas.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;if(player)player.angle=Math.atan2(mouse.y-player.y,mouse.x-player.x)});
+canvas.addEventListener('mousedown',e=>{if(e.button===0){if(player)player.angle=Math.atan2(e.clientY-player.y,e.clientX-player.x);shoot()}});
+function circle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#172534';ctx.fillRect(0,0,W,H);
+ // arena grid
+ ctx.strokeStyle='#263b4d';ctx.lineWidth=1;for(let x=0;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=48){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+ // boundary and cover blocks
+ ctx.strokeStyle='#7c91a5';ctx.lineWidth=5;ctx.strokeRect(8,8,W-16,H-16);
+ const blocks=[[W*.25,H*.3,70,25],[W*.72,H*.27,75,26],[W*.3,H*.72,65,25],[W*.7,H*.7,75,26]];
+ blocks.forEach(([x,y,w,h])=>{ctx.fillStyle='#526373';ctx.fillRect(x-w/2,y-h/2,w,h);ctx.fillStyle='#738596';ctx.fillRect(x-w/2,y-h/2,w,5)});
+ boosts.forEach(b=>{ctx.save();ctx.translate(b.x,b.y);ctx.rotate(performance.now()/500);ctx.fillStyle='#38ed8a';ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(12,0);ctx.lineTo(0,13);ctx.lineTo(-12,0);ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle='#fff';ctx.fillRect(b.x-2,b.y-7,4,14);ctx.fillRect(b.x-7,b.y-2,14,4)});
+ bullets.forEach(b=>{circle(b.x,b.y,4,'#ffe27a')});enemyBullets.forEach(b=>circle(b.x,b.y,5,'#ff684e'));
+ bots.forEach(b=>{if(!b.alive)return;circle(b.x,b.y,b.r,'#a83c39');circle(b.x,b.y-3,7,'#e5b294');ctx.fillStyle='#263342';ctx.fillRect(b.x-15,b.y-25,30,5);ctx.fillStyle='#53e27e';ctx.fillRect(b.x-15,b.y-25,30*(b.hp/b.max),5)});
+ if(player){ctx.save();ctx.translate(player.x,player.y);ctx.rotate(player.angle);circle(0,0,player.r,'#4b9be8');circle(4,-4,6,'#cfeaff');ctx.fillStyle='#1b2835';ctx.fillRect(7,-5,25,10);ctx.fillStyle='#d5eaff';ctx.fillRect(27,-3,9,6);ctx.restore();circle(player.x,player.y,2,'#fff')}
+}
+let prev=0;
+function loop(t){let dt=Math.min((t-prev)/1000||0,.04);prev=t;if(running&&!over){
+ let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0),len=Math.hypot(dx,dy)||1;
+ player.x=Math.max(28,Math.min(W-28,player.x+dx/len*230*dt));player.y=Math.max(28,Math.min(H-28,player.y+dy/len*230*dt));
+ bots.forEach(b=>{if(!b.alive)return;let vx=player.x-b.x,vy=player.y-b.y,d=Math.hypot(vx,vy)||1;b.x+=vx/d*b.speed*dt;b.y+=vy/d*b.speed*dt;b.cool-=dt;if(b.cool<=0&&d<480){enemyBullets.push({x:b.x,y:b.y,vx:vx/d*220,vy:vy/d*220,life:2});b.cool=b.shot}if(d<player.r+b.r+2){health-=15*dt;if(health<=0){health=0;update();end(false)}}});
+ bullets.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;for(const bot of bots){if(bot.alive&&Math.hypot(bot.x-b.x,bot.y-b.y)<bot.r+5){bot.hp-=50;b.life=0;if(bot.hp<=0){bot.alive=false;score+=100;toast('BOT ELIMINATED +100')}break}}});bullets=bullets.filter(b=>b.life>0&&b.x>0&&b.x<W&&b.y>0&&b.y<H);
+ enemyBullets.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(Math.hypot(player.x-b.x,player.y-b.y)<player.r+5){health-=12;b.life=0;update();if(health<=0){health=0;update();end(false)}}});enemyBullets=enemyBullets.filter(b=>b.life>0);
+ boosts.forEach((b,i)=>{if(Math.hypot(player.x-b.x,player.y-b.y)<player.r+14){health=Math.min(100,health+30);boosts.splice(i,1);toast('HEALTH +30');update()}});
+ if(Math.random()<dt*.08&&boosts.length<2)boosts.push({x:rand(60,W-60),y:rand(60,H-60)});
+ if(bots.every(b=>!b.alive))end(true);
+ update();
+}draw();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
